@@ -20,7 +20,7 @@ earth_velocity = 460 * (ur.meter / ur.second)
 vec_pos = np.array([earth_diameter.magnitude / 2.0, 0.0]) * ur.meter
 vec_vel = np.array([earth_velocity.magnitude, 0]) * (ur.meter / ur.second)
 thrust_angle = 30.0 * ur.degree  # counter clock wise from horizontal
-dir_thrust = np.array([np.cos(thrust_angle.to(ur.radians)), np.sin(thrust_angle.to(ur.radians))])
+dir_thrust = np.array([np.cos(np.radians(thrust_angle)), np.sin(np.radians(thrust_angle))])
 
 t = 0 * ur.s
 
@@ -68,57 +68,57 @@ pl.grid()
 earth = pl.Circle((0, 0), float(earth_diameter / 2.0 / ur.meter), color='g')
 ax.add_artist(earth)
 
-arrow_length = 500000
+arrow_length = 200000
 
-arrowplt = pl.arrow(vec_pos.magnitude[0], vec_pos.magnitude[1], dir_thrust[0] * 500000,
-                    dir_thrust[1] * 500000)  # TODO: 500000 thing might fuck this up
+arrowplt = pl.arrow(vec_pos.magnitude[0], vec_pos.magnitude[1],
+                    dir_thrust[0] * 500000, dir_thrust[1] * 500000)
 
 fig.canvas.mpl_connect('key_press_event', event_handler)
-fig.canvas.mpl_connect('button_press_event', event_handler)
 
 pl.show()
 
 dt = 1 * ur.second
 
 while t <= 3600 * ur.second:
-    t += 1 * ur.second
+    t += dt
+
     if fuel_mass.magnitude > 0:
         pl.axis((5.5e6, 8e6, -1e6, 1e6))
         dt = 1 * ur.second
         change_fuel_mass = ((-tsfc * full_thrust) * dt).to(ur.kg)
-        # print(change_fuel_mass)
         fuel_mass += change_fuel_mass
-        if fuel_mass < 0 * ur.kg:
-            print("Out of Fuel")
-            pl.axis((-1e7, 1e7, -1e7, 1e7))
-            fuel_mass = 0 * ur.kg
-        else:
-            pl.axis((-1e7, 1e7, -1e7, 1e7))
-            dt = 10 * ur.second
-        pl.title(f'Fuel Remaining {np.round((fuel_mass.magnitude / 500000) * 100, 2)}%')
-        pl.xlabel(f'Current Time: {t}s')
-        arrowplt.remove()
-
         current_mass = initial_mass + change_fuel_mass
+    elif fuel_mass < 0 * ur.kg:
+        print("Out of Fuel")
+        pl.axis((-1e7, 1e7, -1e7, 1e7))
+        fuel_mass = 0 * ur.kg
+        dt = 10 * ur.second
+        current_mass = initial_mass
+    else:
+        pl.axis((-1e7, 1e7, -1e7, 1e7))
+        current_mass = initial_mass
 
-        vec_gravity = unit_vec(vec_pos) * force_gravity(norm(vec_pos), earth_mass, current_mass)
+    vec_gravity = unit_vec(vec_pos) * force_gravity(norm(vec_pos), earth_mass, current_mass)
 
-        if fuel_mass > 0:
-            vec_thrust = ((np.sqrt(dir_thrust.dot(dir_thrust))) / dir_thrust) * full_thrust
-        else:
-            vec_thrust = 0
+    if fuel_mass > 0:
+        vec_thrust = ((np.sqrt(dir_thrust.dot(dir_thrust))) / dir_thrust) * full_thrust
+    else:
+        vec_thrust = 0
 
-        vec_accel = (vec_gravity + vec_thrust) / current_mass
-        print(vec_accel)
-        print(vec_vel)
-        vec_vel = vec_vel + vec_accel * dt  # Cannot do += here?
+    vec_accel = (vec_gravity + vec_thrust) / current_mass
 
-        vec_pos += vec_vel * dt  # TODO: update rocket position based on gravity type shit
+    vec_vel = vec_vel + vec_accel * dt  # Cannot do += here?
+    vec_pos += vec_vel * dt
 
-        # Draw the new arrow
-        arrowplt = pl.arrow(vec_pos.magnitude[0], vec_pos.magnitude[1],
-                            dir_thrust[0] * arrow_length, dir_thrust[1] * arrow_length,
-                            width=300000, color='r')
+    arrowplt.remove()
 
-        fig.canvas.draw()
-        fig.canvas.flush_events()
+    # Draw the new arrow
+    arrowplt = pl.arrow(vec_pos.magnitude[0], vec_pos.magnitude[1],
+                        dir_thrust[0] * arrow_length, dir_thrust[1] * arrow_length,
+                        width=65000, color='r')
+
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+
+    pl.title(f'Fuel Remaining {np.round((fuel_mass.magnitude / 500000) * 100, 2)}%')
+    pl.xlabel(f'Current Time: {t}s')
